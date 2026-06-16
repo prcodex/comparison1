@@ -372,6 +372,15 @@ default.
 
 ## 11 · What to actually build — recommendation
 
+> **Update.** After further evaluation and a second June 2026 evidence review, this section's
+> "two-tier" framing has been superseded by the cleaner statement in
+> [single_vector_plus/README.md](single_vector_plus/README.md). The two-tier idea was hedged
+> toward chunking; the deliberate architecture is single-vector default + retrieval-time
+> compensations (hybrid + reranker + Haiku-extracted tags + doc-level prefix + editorial
+> multipliers), with two narrow chunking opt-ins (late chunking for docs > 4K tokens,
+> page-image embeddings for PDFs). The structure below is preserved for continuity, but
+> [single_vector_plus/](single_vector_plus/) is the current recommendation.
+
 A **two-tier index** that defaults to single-vector and chunks selectively:
 
 | Tier | What it stores | When it's queried |

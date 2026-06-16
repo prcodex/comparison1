@@ -147,6 +147,22 @@ That companion file goes beyond the at-a-glance comparison above:
   PDFs / podcasts / long-form > 3K tokens, with late chunking as a cheaper substitute for
   hierarchical + LLM prefix on the middle of the doc-length distribution.
 
+A third companion, **[single_vector_plus/](single_vector_plus/)**, proposes the architecture
+that crystallized after the deeper evaluation: keep single-vector-per-document as the
+default and compensate for its known weaknesses (hybrid BM25+dense, strong reranker,
+Haiku-extracted tags+entities, doc-level contextual prefix, source-class multipliers), with
+chunking reserved as a narrow opt-in for the two source classes where it's genuinely
+mandatory (long-form > 4K tokens via late chunking; PDFs via page-image embeddings). It is
+the deliberate alternative to the v5 spec's universal chunking, motivated by (a) the
+observation that rule-based chunking introduces noise on documents with inconsistent
+structure (most ingested news/research), and (b) the 2025–2026 evidence that hybrid +
+strong reranker recovers most of the lift attributed to chunking on attribution- and
+synthesis-heavy query mixes. The directory contains: a [README](single_vector_plus/README.md)
+with motivation and architecture, an [implementation guide](single_vector_plus/implementation.md)
+with schema and prompts and code, an [evidence review](single_vector_plus/evidence.md) of
+June 2026 sources per compensation, and a [Phase 0 eval spec](single_vector_plus/phase0_eval.md)
+for the golden-set comparison that would settle the question with measurement.
+
 **New to RAG?** Start with the beginner walkthrough in
 **[for_beginners/hierarchical_and_contextual.md](for_beginners/hierarchical_and_contextual.md)**
 — it explains tokens, embeddings, the per-source-class matrix, hierarchical chunking
