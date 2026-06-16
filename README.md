@@ -146,3 +146,12 @@ That companion file goes beyond the at-a-glance comparison above:
 - Recommends a concrete two-tier index: single-vector default, multi-chunk selectively on
   PDFs / podcasts / long-form > 3K tokens, with late chunking as a cheaper substitute for
   hierarchical + LLM prefix on the middle of the doc-length distribution.
+
+A second companion, **[haiku_cleaning.md](haiku_cleaning.md)**, documents a *pre-embedding*
+pattern already in production in the live system: one small-LLM (Claude Haiku) call per
+ingested document at ingest time that strips source-specific boilerplate and standardizes
+formatting before any embedding or chunking happens. It is independent of the chunking
+decision, complementary to per-chunk contextual prefixing, and roughly 20× cheaper because
+it operates per-document rather than per-chunk. Includes the actual prompts (preserve-all
+and extractive variants, EN and PT), the code skeleton, the source-class routing table, and
+the observed failure modes.

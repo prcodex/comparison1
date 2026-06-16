@@ -330,6 +330,15 @@ hierarchical complexity from a slice of the corpus where it does not pay.
 
 ### 10.2 Apply the Haiku contextual prefix selectively, not universally
 
+> Note: this section discusses Anthropic's *per-chunk* contextual prefix, which is distinct
+> from the *per-document* Haiku cleaning pass already running in production. See
+> [haiku_cleaning.md](haiku_cleaning.md) for the per-document pattern. Because the cleaning
+> pass already removes much of the boilerplate and ambiguity the per-chunk prefix is meant
+> to solve, the marginal benefit of stacking both is smaller than each evaluated in
+> isolation — another reason to evaluate the per-chunk prefix on the golden set rather than
+> apply it by default.
+
+
 Concentrate the prefix on:
 
 - PDF text-children (long docs, dense anaphora — where the prefix actually lifts retrieval)
