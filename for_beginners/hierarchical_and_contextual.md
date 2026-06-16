@@ -145,7 +145,300 @@ Query *"Brazil rates"*:
 
 ---
 
-## Part 3: How this stacks with the other two ingestion-time techniques
+## Part 2.5: A real worked example — end-to-end
+
+Let's actually run the EM Strategy Weekly through the pipeline, with concrete (mock) content
+at every stage so you can see exactly what each step does.
+
+### Step 0 — what arrives from the scraper
+
+The raw email body, as the IMAP fetcher delivers it. Lots of noise:
+
+```
+View report online: https://research.bank-n.example/em-weekly/2026-06-12-v4
+
+From: research-notifications@bank-n.example
+To: subscriber@example.com
+Subject: EM Strategy Weekly — Jun 12, 2026
+Date: Thu, 12 Jun 2026 06:14:22 +0000
+
+==============================================================
+        EM STRATEGY WEEKLY  |  Jun 12, 2026  |  Issue #423
+==============================================================
+
+[Click here to view in browser]    [Forward to a colleague]
+[Manage subscriptions]              [Unsubscribe]
+
+----- INTRODUCTION -----
+
+Welcome to this week's edition. Below we cover Brazil rates,
+Mexico growth, LatAm FX positioning, Asia PBOC moves, and our
+trade-of-the-week. Conditions across the EM complex shifted
+materially over the past five sessions...
+
+[... ~700 more words across Brazil, Mexico, FX, Asia sections ...]
+
+----- CONCLUSIONS -----
+
+In sum, we see a window for selective EM exposure over the next
+2-3 weeks, with Brazil duration and MXN longs as the preferred
+expressions.
+
+==============================================================
+
+This communication is being distributed for informational
+purposes only. It does not constitute an offer to sell or a
+solicitation of an offer to buy any security. Past performance
+is not a guarantee of future results. Please see important
+disclosures at the end of this document.
+
+Bank N Research  |  +1 212 555 0100
+research@bank-n.example  |  www.bank-n.example/research
+
+© 2026 Bank N & Co. All rights reserved. Bank N is a registered
+trademark of Bank N Holdings. This message and any attachments
+are confidential and intended solely for the use of the
+individual or entity to whom they are addressed...
+
+[300+ more characters of legal disclaimer]
+```
+
+Total: ~5,800 tokens. Of those, ~1,600 tokens (28%) are boilerplate — headers, footers,
+navigation links, disclaimers.
+
+### Step 1 — after Haiku cleaning pass
+
+One Haiku call with the preserve-all prompt from
+[haiku_cleaning.md](../haiku_cleaning.md). The output:
+
+```markdown
+# EM Strategy Weekly — Jun 12, 2026
+
+## Introduction
+
+Welcome to this week's edition. Below we cover Brazil rates, Mexico growth,
+LatAm FX positioning, Asia PBOC moves, and our trade-of-the-week. Conditions
+across the EM complex shifted materially over the past five sessions...
+
+## Brazil: rates view
+
+The central bank's communication this week marked the clearest dovish pivot
+of the cycle. Three of seven committee members now publicly favor a 25 bp
+cut at the September meeting, up from one member at the May print. Headline
+inflation has undershot the central projection for two consecutive months,
+and the breakevens curve has flattened by 22 bp since May 28...
+
+## Mexico: growth outlook
+
+[~600 words on Mexico growth dynamics...]
+
+## LatAm FX positioning
+
+[~500 words on FX flow data, positioning surveys, technical levels...]
+
+## Asia: PBOC moves
+
+[~700 words on China rate corridor, liquidity injections, CNH fixings...]
+
+## Conclusions
+
+In sum, we see a window for selective EM exposure over the next 2-3 weeks,
+with Brazil duration and MXN longs as the preferred expressions.
+```
+
+Total: ~4,200 tokens. The 1,600 tokens of boilerplate are gone. The markdown headers (`##`)
+will become useful in the next step because the chunker can use them as semantic boundaries.
+
+### Step 2 — hierarchical split
+
+The chunker reads the cleaned markdown. It does two passes:
+
+**Parent pass (~2,000 tokens, ~200 tok overlap)** — walks the document by character offset,
+preferring to break on markdown headers (`##`) when one falls near the target size:
+
+```
+Parent A (tokens 0–2000):
+  "# EM Strategy Weekly — Jun 12, 2026
+   ## Introduction        [300 words]
+   ## Brazil: rates view  [800 words]
+   ## Mexico: growth outlook (first half) [~400 of 600 words]"
+
+Parent B (tokens 1800–3800):           ← starts 200 tokens before Parent A ends (overlap)
+  "(...Mexico growth tail...)
+   ## LatAm FX positioning [500 words]
+   ## Asia: PBOC moves (first half) [~400 of 700 words]"
+
+Parent C (tokens 3600–4200):           ← starts 200 tokens before Parent B ends
+  "(...Asia PBOC tail...)
+   ## Conclusions [200 words]"
+```
+
+**Child pass (~400–512 tokens, ~80 tok overlap)** — walks each parent, breaking at sentence
+boundaries when a candidate boundary falls near the target size. For Parent A:
+
+```
+Parent A
+├── Child 1 (tokens 0–410):
+│   "# EM Strategy Weekly — Jun 12, 2026
+│    ## Introduction
+│    Welcome to this week's edition. Below we cover Brazil rates,
+│    Mexico growth, LatAm FX positioning, Asia PBOC moves, and our
+│    trade-of-the-week. Conditions across the EM complex shifted
+│    materially over the past five sessions...
+│    [continues to fill the chunk]"
+│
+├── Child 2 (tokens 330–760):           ← 80 tok overlap with Child 1
+│   "## Brazil: rates view
+│    The central bank's communication this week marked the clearest
+│    dovish pivot of the cycle. Three of seven committee members now
+│    publicly favor a 25 bp cut at the September meeting, up from one
+│    member at the May print. Headline inflation has undershot the
+│    central projection for two consecutive months..."
+│
+├── Child 3 (tokens 680–1090):
+│   "...and the breakevens curve has flattened by 22 bp since May 28.
+│    Our view: we now see one cut at the September meeting as the
+│    base case (60% probability), with a second cut by year-end (40%).
+│    Risks are tilted to the dovish side given the inflation print..."
+│
+├── Child 4 (tokens 1010–1450):
+│   "## Mexico: growth outlook
+│    Q1 GDP came in at 1.8% q/q annualized, above the 1.3% consensus
+│    and our 1.5% estimate. The composition was constructive: private
+│    investment +4.2%, household consumption +2.1%..."
+│
+└── Child 5 (tokens 1370–1820):
+    "...Banxico's stance has not yet adjusted to reflect the upside
+     surprise. We expect the September minutes to soften the hawkish
+     bias modestly, but no near-term cut signal..."
+```
+
+…and similarly Children 6–10 for Parent B, Children 11–13 for Parent C.
+
+What's in the database after this step: **13 child rows + 3 parent rows**, all unembedded
+so far. Each child row carries: `chunk_id`, `parent_id`, `doc_id`, `text`, `chunk_role =
+"child"`, `chunk_idx`, `section_heading`, `created_at`.
+
+### Step 3 — contextual prefix per child (the per-chunk Haiku call)
+
+For each of the 13 children, the system calls Haiku with the contextual-retrieval prompt
+from Part 3 below, passing in the *whole cleaned document* + the chunk. Take Child 3 — the
+one that contains "we now see one cut at the September meeting as the base case":
+
+Haiku returns:
+
+```
+This chunk is from the EM Strategy Weekly published 2026-06-12, in the
+"Brazil: rates view" section, summarizing the analyst's base-case forecast
+for the September COPOM meeting (one 25 bp cut at 60% probability, second
+cut by year-end at 40%) and the dovish risk skew driven by the recent
+inflation undershoot.
+```
+
+That prefix gets prepended to Child 3's text:
+
+```
+This chunk is from the EM Strategy Weekly published 2026-06-12, in the
+"Brazil: rates view" section, summarizing the analyst's base-case forecast
+for the September COPOM meeting (one 25 bp cut at 60% probability, second
+cut by year-end at 40%) and the dovish risk skew driven by the recent
+inflation undershoot.
+
+...and the breakevens curve has flattened by 22 bp since May 28. Our view:
+we now see one cut at the September meeting as the base case (60%
+probability), with a second cut by year-end (40%). Risks are tilted to the
+dovish side given the inflation print...
+```
+
+The **combined text** (prefix + chunk) is what gets embedded. Notice that the prefix has
+injected "Brazil," "COPOM," "September," "base case," "dovish" — none of which were
+explicitly in the chunk's words but all of which a search for "Brazil central bank base
+case for September" would now match.
+
+### Step 4 — embedding
+
+Each child's (prefix + text) goes to Voyage / Cohere v4 and comes back as a 1,536- or
+2,048-dimensional vector. The vector is stored back on the child row in the `vector` column,
+and `has_vector` is set to `1.0`.
+
+What ends up in the database for Child 3:
+
+```
+{
+  "chunk_id":         "em_weekly_2026_06_12__c3",
+  "parent_id":        "em_weekly_2026_06_12__pA",
+  "doc_id":           "em_weekly_2026_06_12",
+  "chunk_role":       "child",
+  "chunk_idx":        3,
+  "section_heading":  "Brazil: rates view",
+  "text":             "...and the breakevens curve has flattened by 22 bp...",
+  "contextual_prefix":"This chunk is from the EM Strategy Weekly published 2026-06-12...",
+  "vector":           [0.0134, -0.0289, 0.1142, ... (2048 numbers)],
+  "has_vector":       1.0,
+  "source_id":        "bank_n_em_weekly",
+  "created_at":       "2026-06-12T06:14:22Z",
+  "entity_id":        "bank_n",
+  "domain":           "macro"
+}
+```
+
+The parent row for Parent A is *not* embedded (parents are storage for context, not search
+targets):
+
+```
+{
+  "chunk_id":        "em_weekly_2026_06_12__pA",
+  "doc_id":          "em_weekly_2026_06_12",
+  "chunk_role":      "parent",
+  "chunk_idx":       0,
+  "text":            "# EM Strategy Weekly — Jun 12, 2026\n## Introduction...",
+  "vector":          null,
+  "has_vector":      0.0,
+  "created_at":      "2026-06-12T06:14:22Z"
+}
+```
+
+### Step 5 — query time
+
+A few days later, a user asks:
+
+> *"What's the bank's base case for the September COPOM?"*
+
+Walk through:
+
+1. The query gets embedded by the same model that embedded the children → a 2,048-dim
+   vector.
+2. The vector database runs a cosine-similarity search against **all child vectors** in the
+   table, returning the top 100 or so by similarity.
+3. The reranker (Cohere Rerank 3.5) re-scores those 100 candidates against the *query text*
+   and surfaces the top 30.
+4. Child 3 is the top result. Its `parent_id` is `em_weekly_2026_06_12__pA`.
+5. The system fetches Parent A's text and hands *that* (the full 2,000-token parent, not
+   the 400-token child) to the synthesizer LLM.
+6. The synthesizer LLM reads Parent A — which contains the Introduction, the full Brazil
+   rates section, and the first half of Mexico — and answers:
+
+   > *"Bank N's base case is one 25 bp cut at the September COPOM meeting (60% probability),
+   > with a second cut by year-end (40%). The case rests on a recent two-month inflation
+   > undershoot of the central projection and a 22 bp flattening of the breakevens curve
+   > since May 28."*
+
+Notice three things about that answer:
+
+- The **specific numbers** ("25 bp," "60%," "22 bp") came from Child 3's text — the small
+  precise unit that won the search.
+- The **framing** ("base case," "September COPOM") came from the parent context — Child 3
+  alone didn't say "September COPOM," just "the September meeting."
+- The **attribution to Bank N** came from the parent header — Child 3 didn't repeat the
+  document title.
+
+This is the whole point of the hierarchical pattern: the **child won the search** (high-
+precision match on the embedded numbers and views), but the **parent supplied the framing**
+that made the answer correct and citable.
+
+---
+
+
 
 The proposed architecture combines **three separate techniques** at three different stages.
 They get confused because they all involve a Haiku call somewhere; they are in fact distinct
