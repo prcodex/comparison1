@@ -147,6 +147,12 @@ That companion file goes beyond the at-a-glance comparison above:
   PDFs / podcasts / long-form > 3K tokens, with late chunking as a cheaper substitute for
   hierarchical + LLM prefix on the middle of the doc-length distribution.
 
+**New to RAG?** Start with the beginner walkthrough in
+**[for_beginners/hierarchical_and_contextual.md](for_beginners/hierarchical_and_contextual.md)**
+— it explains tokens, embeddings, the per-source-class matrix, hierarchical chunking
+(parent 2,000 / child 400–512), Anthropic's contextual-retrieval prefix, and how the three
+ingestion-time pieces stack together. The other companions assume this background.
+
 A second companion, **[haiku_cleaning.md](haiku_cleaning.md)**, documents a *pre-embedding*
 pattern already in production in the live system: one small-LLM (Claude Haiku) call per
 ingested document at ingest time that strips source-specific boilerplate and standardizes
