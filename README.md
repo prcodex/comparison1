@@ -126,3 +126,23 @@ The fastest path from this doc to evidence:
 4. Layer Phases 2–4 (hierarchical → captions → rerank), re-scoring at each gate.
 
 Only after step 2 does this table stop being "reality vs. intent" and become "before vs. after."
+
+---
+
+## 7 · Further reading
+
+For a deeper, document- and query-specific study of the single-vector vs. multi-chunk
+question — including a direct answer to "do my PDFs actually need to be chunked?", a per-
+document-class matrix, an honest pros/cons table, and where the 2026 literature pushes back
+on the universal-chunking instinct — see **[chunking_study.md](chunking_study.md)**.
+
+That companion file goes beyond the at-a-glance comparison above:
+
+- Separates the three independent levers usually conflated as "chunking strategy"
+  (granularity, contextualization, modality).
+- Maps each query type in the system's actual traffic to the retrieval shape that wins for it.
+- Argues the triple-layer PDF pattern is correct, while the universal Haiku contextual prefix
+  is over-applied relative to where the evidence concentrates.
+- Recommends a concrete two-tier index: single-vector default, multi-chunk selectively on
+  PDFs / podcasts / long-form > 3K tokens, with late chunking as a cheaper substitute for
+  hierarchical + LLM prefix on the middle of the doc-length distribution.
